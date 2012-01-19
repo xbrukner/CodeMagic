@@ -16,7 +16,7 @@ exp = varname ws eq ws varname ws sc
 | varname ws eq ws function sc
 | function sc
 ;
-ws = w*
+ws = w*;
 function = funcname ws lp params rp ws | funcname ws lp ws rp ws;
 type = typename lp typedata rp ws;
 all = eq | sc | lp | rp | bs | cm | d | big | small | rest;
@@ -24,5 +24,6 @@ typedata = ws | eq | sc | lp | bs rp | bs | cm | d | big | small | rest;
 typename = big all*;
 funcname = small all*;
 varname = d all*;
-params = ws param (cm ws param)*;
-param = type | varname ws | function
+params = ws param params2*;
+params2 = cm ws param;
+param = type | varname ws | function;
