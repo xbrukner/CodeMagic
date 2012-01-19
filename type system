@@ -1,0 +1,13 @@
+- every type has given set of possible conversion
+- every function is defined for some set of types
+- code is evaluated before "execution" - given all possible types, is it possible to use all operations with some type?
+- every returned value from function may have limited type
+- possible "inheritance" between types for simpler definition
+
+Predefined types:
+- int
+- float
+- string
+- enum (special case bool => true, false)
+- function
+- capsule (defined for operator [], array, hash)

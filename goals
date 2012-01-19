@@ -1,0 +1,5 @@
+- define internal format with as wide language coverage as possible
+- create framework for information extraction - one round pass only
+- create framework for code modification - replacement, insertion
+- create framework for partial execution
+

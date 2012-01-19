@@ -1,0 +1,35 @@
+- every command is basically an assigment, but can be assigned into no variable
+- no variable definition, no implicit variable type
+- every function has every parameter read only
+- no implicit function definition (yet - every file is function)
+- no distinction between variable and function name
+- everything is in prefix form
+- lamba? (not yet)
+- no objects (first parameter is this)
+- \ is escape character
+
+Format:
+- basic static value assigment:
+varname = value;
+- basic function call:
+result = function();
+- function call without return value:
+function();
+- function call with two paramaters:
+result = function(varname, value);
+
+Sample - two numbers addition:
+three = +(1, 2);
+
+If (must be \t):
+if (condition);
+	code_inside_if = 1;
+else;
+	code_inside_else = 1;
+
+While loop (must be \t):
+while (condition);
+	code_inside_while = 1;
+
+Return statement (filewide):
+return (value);
