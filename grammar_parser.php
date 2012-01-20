@@ -4,6 +4,8 @@ class parser {
 	private $read;
 	protected $input;
 	protected $addedError;
+	protected $neededTokens;
+	
 	function __construct($input) {
 		$this->input = $input;
 		$this->read = 0;
@@ -16,7 +18,8 @@ class parser {
 			$expansion = $this->findExpansions($newName);
 			$this->rules[$newName] = $expansion;
 		}
-		var_dump($this->rules);
+		$this->getNeededTokens();
+		var_dump($this->neededTokens);
 	}
 	
 	protected function error($message) {
@@ -88,6 +91,26 @@ class parser {
 		return (($pos = strpos($token, '*')) !== false ? 
 			$token[strlen($token) - 1] == '*' and $pos == strlen($token) - 1 : true);
 	}
+	
+	static function flatten($array) {
+		$res = array();
+		foreach ($array as $value) {
+			if (is_array($value)) {
+				$res = array_merge($res, self::flatten($value));
+			}
+			else {
+				$res []= $value;
+			}
+		}
+		return $res;
+	}
+	
+	private function getNeededTokens() {
+		$removeAsterisk = function ($token) { return rtrim($token, '*'); };
+		$defined = array_keys($this->rules);
+		$usedTokens = array_unique(array_map($removeAsterisk, self::flatten($this->rules)));
+		$this->neededTokens = array_values(array_filter($usedTokens, function ($token) use ($defined) { return !in_array($token, $defined); } ));
+	}
 }
 $parse = <<<'EOF'
 exp = varname ws eq ws varname ws sc
@@ -107,5 +130,7 @@ params = ws param params2*;
 params2 = cm ws param;
 param = type | varname ws | function;
 EOF;
+//$a = array(1); $b = array(2);
+//var_dump($a + $b);
 $a = new parser($parse);
 ?>
