@@ -5,6 +5,8 @@ class parser {
 	protected $input;
 	protected $addedError;
 	protected $neededTokens;
+	protected $state = null;
+	protected $loaded = null;
 	
 	function __construct($input) {
 		$this->input = $input;
@@ -18,8 +20,17 @@ class parser {
 			$expansion = $this->findExpansions($newName);
 			$this->rules[$newName] = $expansion;
 		}
+		//var_dump($this->rules);
 		$this->getNeededTokens();
-		var_dump($this->neededTokens);
+		//var_dump($this->neededTokens);
+		//foreach ($this->rules as $key=>$value) {
+		//	var_dump($key, $this->getFinalTokens($value, $key));
+		//}
+		//var_dump($this->getFinalTokens(array_pop($this->rules)));
+		$t = $this->getFinalTokens($this->rules['typename'], 'typename');
+		//var_dump($t);
+		var_dump($this->getNext($t[1][0]));
+		$this->checkOneAmbiguity($this->getNext($t[1][0]));
 	}
 	
 	protected function error($message) {
@@ -92,6 +103,14 @@ class parser {
 			$token[strlen($token) - 1] == '*' and $pos == strlen($token) - 1 : true);
 	}
 	
+	static function hasAsterisk($token) {
+		return $token[strlen($token) - 1] == '*';
+	}
+	
+	static function removeAsterisk($token) {
+		return rtrim($token, '*');
+	}
+	
 	static function flatten($array) {
 		$res = array();
 		foreach ($array as $value) {
@@ -106,10 +125,100 @@ class parser {
 	}
 	
 	private function getNeededTokens() {
-		$removeAsterisk = function ($token) { return rtrim($token, '*'); };
 		$defined = array_keys($this->rules);
-		$usedTokens = array_unique(array_map($removeAsterisk, self::flatten($this->rules)));
+		$usedTokens = array_unique(array_map(array('self', 'removeAsterisk'), self::flatten($this->rules)));
 		$this->neededTokens = array_values(array_filter($usedTokens, function ($token) use ($defined) { return !in_array($token, $defined); } ));
+	}
+	
+	private function getFinalTokens($derivations, $from = null, $k1 = 0, $k2 = 0) {
+		if ($from === null) {
+			$from = array_keys($this->rules);
+			$from = $from[0];
+		}
+		$ret = array();
+		$sub = array(false, null);
+		$finished = false;
+		foreach ($derivations as $key=>$derivation) {
+			if ($k1 > $key) continue;
+			foreach ($derivation as $key2=>$value) {
+				if ($k2 > $key2) continue;
+				$token = self::removeAsterisk($value);
+				if (in_array($token, $this->neededTokens)) {
+					$ret[]= array($token, $from, $key, $key2, $value);
+				}
+				else {
+					$sub = $this->getFinalTokens($this->rules[$token], array($token, $from, $key, $key2, $value));
+					$ret = array_merge($ret, $sub[1]);
+				}
+				if ($token == $value and !$sub[0]) {
+					continue 2;
+				}
+				$sub[0] = false;
+			}
+			$finished = true;
+		}
+		return array($finished, $ret);
+	}
+	
+	private function getNext($state, $stopAtNeeded = false) {
+		$ret = array();
+		$thisRule = (is_array($state[1]) ? $state[1][0] : $state[1]);
+		if (in_array($state[0], $this->neededTokens)) {
+			if ($state[4] != $state[0]) {
+				$ret []= $state;
+			}
+		}
+		else {
+			if ($state[4] != $state[0]) {
+				$sub = $this->getFinalTokens($this->rules[$thisRule], $state[1], $state[2], $state[3]);
+				$ret = array_merge($ret, $sub[1]);
+			}
+		}
+		
+		if (count($this->rules[$thisRule][$state[2]]) - 1 == $state[3]) {
+			if (is_array($state[1])) {
+				$ret = array_merge($ret, $this->getNext($state[1]));
+			}
+		}
+		else {
+			$nextRule = $this->rules[$thisRule][$state[2]][$state[3] + 1];
+			$isNeeded = in_array($nextRule, $this->neededTokens);
+			$sub = array(false);
+			if (!self::hasAsterisk($nextRule) and !$isNeeded) {
+				$sub = $this->getFinalTokens($this->rules[$nextRule], array($nextRule, $state[1], $state[2], $state[3] + 1, $nextRule));
+				$ret = array_merge($ret, $sub[1]);
+			}
+			if (self::hasAsterisk($nextRule) or $sub[0]) {
+				$ret = array_merge($ret, $this->getNext(
+					array(self::removeAsterisk($nextRule), $state[1], $state[2], $state[3] + 1, $nextRule)
+				));
+			}
+			if($isNeeded) {	
+				$ret []= array(self::removeAsterisk($nextRule), $state[1], $state[2], $state[3] + 1, $nextRule);
+			}
+		}
+		return $ret;
+	}
+	
+	static function backtrace($trace) {
+		return (is_string($trace) ? $trace : self::backtrace($trace[1])."[$trace[2]][$trace[3]]>".$trace[4]);
+	}
+	
+	private function checkOneAmbiguity($state) {
+		$keys = array();
+		foreach ($state as $key=>$s) {
+			if (!array_key_exists($s[0], $keys)) {
+				$keys[$s[0]] = array($key);
+			}
+			else {
+				foreach ($keys[$s[0]] as $prev) {
+					if (self::backtrace($s) != self::backtrace($state[$prev])) {
+						$this->error("Ambigous grammar for token $s[0] with backtraces ".self::backtrace($s)." and ".self::backtrace($state[$prev]));
+					}
+				}
+				$keys[$s[0]] []= $key;
+			}
+		}
 	}
 }
 $parse = <<<'EOF'
@@ -123,7 +232,7 @@ function = funcname ws lp params rp ws | funcname ws lp ws rp ws;
 type = typename lp typedata rp ws;
 all = eq | sc | lp | rp | bs | cm | d | big | small | rest;
 typedata = ws | eq | sc | lp | bs rp | bs | cm | d | big | small | rest;
-typename = big all*;
+typename = typedata;
 funcname = small all*;
 varname = d all*;
 params = ws param params2*;
